@@ -30,7 +30,7 @@ void semaphores_init()
     sem_init(write_file, 1, 1);
 
     A = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    A = 0;
+    *A = 0;
 
     action = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(action, 1, 1);
@@ -48,14 +48,14 @@ void cleanup()
 
 void print_flush(const char * format, ...)
 {
-    //sem_wait(write_file);
+    sem_wait(write_file);
     va_list args;
     va_start (args, format);
     vfprintf (file, format, args);
     fprintf(file, "\n");
     fflush(file);
     va_end (args);
-    //sem_post(write_file);
+    sem_post(write_file);
 }
 
 int parse_params(int argc, char* argv[]) //todo přepsat atoi sscanf a checkovat -1
@@ -110,8 +110,50 @@ int parse_params(int argc, char* argv[]) //todo přepsat atoi sscanf a checkovat
     return 0; //no error
 }
 
+int customer(int idZ, int start_time)
+{
+    sem_wait(action);
+    print_flush("%d: Z %d: started", ++*A, idZ);
+    sem_post(action);
+    srand(time(NULL));
+    usleep(rand() % TZ);
+    if(start_time + F >= time(NULL))
+    {
+        sem_wait(action);
+        print_flush("%d: Z %d: going home", ++*A, idZ);
+        sem_post(action);
+        exit(0);
+    }
+    else
+    {
+        srand(time(NULL));
+                
+        int service = rand() % 2;
+        service++;
+        sem_wait(action);
+        print_flush("%d: Z %d: entering office for a service %d", ++*A, idZ, service);
+        sem_post(action);
+                
+        //enlists quee X and waits for call from officer
+                
+        sem_wait(action);
+        print_flush("%d: Z %d: called by office worker", ++*A, idZ);
+        sem_post(action);
+
+        srand(time(NULL));
+        int sleep_time = rand() % 10;
+        sleep(sleep_time);
+                
+        sem_wait(action);
+        print_flush("%d: Z %d: going home", ++*A, idZ);
+        sem_post(action);
+        exit(0);
+    }
+}
+
 int main(int argc, char* argv[])
 {
+    int start_time = time(NULL);
     if(parse_params(argc, argv))
     {
         exit(1);
@@ -129,44 +171,16 @@ int main(int argc, char* argv[])
         pid_t pid = fork();
         if(pid == 0)
         {
-            print_flush("%d: Z %d: started", ++A, idZ);
-            srand(time(NULL));
-            usleep(rand() % TZ);
-            //sem_wait(post);
-                //print_flush("A: %d: going home", idZ);
-            //else
-                srand(time(NULL));
-                
-                int service = rand() % 2;
-                service++;
-                sem_wait(action);
-                print_flush("%d: Z %d: entering office for a service %d", ++A, idZ, service);
-                sem_post(action);
-                
-                //enlists quee X and waits for call from officer
-                
-                sem_wait(action);
-                print_flush("%d: Z %d: called by office worker", ++A, idZ);
-                sem_post(action);
-
-                srand(time(NULL));
-                int sleep_time = rand() % 10;
-                sleep(sleep_time);
-                //print_flush("sleep_time = %d", sleep_time);
-                
-                sem_wait(action);
-                print_flush("%d: Z %d: going home", ++A, idZ);
-                sem_post(action);
-            return 0;
+            customer(idZ, start_time);
         }
     }
     srand(time(NULL));
     usleep(rand() % F/2 + F/2);
     
     sem_wait(action);
-    print_flush("%d: closing\n", ++A);
+    print_flush("%d: closing\n", ++*A);
     sem_post(action);
     //waits for end of all proceses
     cleanup();
-    exit(0);
+    //exit(0);
 }
