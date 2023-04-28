@@ -358,11 +358,15 @@ int main(int argc, char* argv[])
     sem_wait(closed_sem);
     *closed = 1;
     sem_post(closed_sem);
-    srand(time(NULL) * getpid());
-    int sleep_time = rand() % F/2 + F/2;
-    if(sleep_time != 0)
+    
+    
+    if(F != 0)
+    {
+        srand(time(NULL) * getpid());
+        int sleep_time = rand() % F/2 + F/2;
         usleep(sleep_time*1000);
-
+    }
+    
     while(wait(NULL) > 0);
     print_flush("closing");
     cleanup();
