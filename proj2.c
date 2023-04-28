@@ -30,7 +30,7 @@ sem_t *closed_sem;
 sem_t *mutex_q1;
 sem_t *mutex_q2;
 sem_t *mutex_q3;
-sem_t *customer_sem;
+
 sem_t *worker_sem;
 int *q1;
 int *q2;
@@ -43,14 +43,13 @@ void semaphores_init()
 
     A = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *A = 0;
+    action = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(action, 1, 1);
 
     closed = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *closed = 0;
     closed_sem = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(closed_sem, 1, 1);
-
-    action = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(action, 1, 1);
 
     queue_service1 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(queue_service1, 1, 0);
@@ -75,9 +74,6 @@ void semaphores_init()
     *q2 = 0;
     q3 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *q3 = 0;
-
-    customer_sem = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(customer_sem, 1, 0);
     
     worker_sem = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(worker_sem, 1, 0);
@@ -88,9 +84,14 @@ void cleanup()
 {
     sem_destroy(write_file);
     munmap(write_file, sizeof(sem_t));
+
     munmap(A, sizeof(int));
     sem_destroy(action);
     munmap(action, sizeof(sem_t));
+    
+    munmap(closed, sizeof(bool));
+    sem_destroy(closed_sem);
+    munmap(closed_sem, sizeof(sem_t));
 
     sem_destroy(queue_service1);
     munmap(queue_service1, sizeof(sem_t));
@@ -99,10 +100,19 @@ void cleanup()
     sem_destroy(queue_service3);
     munmap(queue_service3, sizeof(sem_t));
 
-    munmap(closed, sizeof(bool));
-    sem_destroy(closed_sem);
-    munmap(closed_sem, sizeof(sem_t));
+    sem_destroy(mutex_q1);
+    munmap(mutex_q1, sizeof(sem_t));
+    sem_destroy(mutex_q2);
+    munmap(mutex_q2, sizeof(sem_t));
+    sem_destroy(mutex_q3);
+    munmap(mutex_q3, sizeof(sem_t));
+
     munmap(q1, sizeof(int));
+    munmap(q2, sizeof(int));
+    munmap(q3, sizeof(int));
+
+    sem_destroy(worker_sem);
+    munmap(worker_sem, sizeof(sem_t));
 }
 
 void print_flush(const char * format, ...)
@@ -216,12 +226,10 @@ int customer(int idZ)
     }
     else
     {
-        sem_post(closed_sem);
-
-
         srand(time(NULL) * getpid());
         int service = (rand() % 3) + 1;
         print_flush("Z %d: entering office for a service %d", idZ, service);
+        sem_post(closed_sem);
         
         enlist_queue(service);
         
@@ -247,7 +255,7 @@ int pick_queue(int idU)
     if(*q1 == 0 && *q2 == 0 && *q3 == 0)
     {
         sem_wait(closed_sem);
-        if(*closed)
+        if(*closed == 1)
         {
             sem_post(closed_sem);            
             print_flush("U %d: going home", idU);
@@ -258,9 +266,8 @@ int pick_queue(int idU)
         }
         else
         {
-            sem_post(closed_sem);
-
             print_flush("U %d: taking break", idU);
+            sem_post(closed_sem);
             srand(time(NULL) * getpid());
             int sleep_time = rand() % 10;
             if(sleep_time != 0)
@@ -353,22 +360,20 @@ int main(int argc, char* argv[])
             worker(idU);
         }
     }
-    if(F != 0)
-        usleep(F*1000);
-    sem_wait(closed_sem);
-    *closed = 1;
-    sem_post(closed_sem);
-    
-    
+
     if(F != 0)
     {
         srand(time(NULL) * getpid());
         int sleep_time = rand() % F/2 + F/2;
         usleep(sleep_time*1000);
     }
+    sem_wait(closed_sem);
+    *closed = 1;
+    sem_post(closed_sem);
+    print_flush("closing");
+
     
     while(wait(NULL) > 0);
-    print_flush("closing");
     cleanup();
     return 0;
 }
