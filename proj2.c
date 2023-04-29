@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>       //rand
-#include <unistd.h>     //usleep
-#include <stdarg.h>     //va_list
-#include <sys/types.h>  //pid_t
-#include <semaphore.h>  //sem_t
-#include <sys/mman.h>   //mmap
+#include <time.h>
+#include <unistd.h>
+#include <stdarg.h>
+#include <sys/types.h> 
+#include <semaphore.h>
+#include <sys/mman.h>
 #include <semaphore.h>
 #include <stdbool.h>
 #include <sys/wait.h>
@@ -14,7 +14,7 @@ int NZ = 0;     //number of customers
 int NU = 0;     //number of workers
 int TZ = 0;     //customer wait time
 int TU = 0;     //worker wait time
-int F  = 0;     //post office open time
+int F  = 0;     //post office open tine period
 
 sem_t *mutex_file;
 FILE *file;
@@ -24,7 +24,7 @@ sem_t *mutex_A;
 int *A;
 
 sem_t *mutex_closed;
-bool *closed;       //0 default, 1 after post closes
+bool *closed;       //0 default, 1 after post office closes
 
 sem_t *mutex_q1;
 sem_t *mutex_q2;
@@ -81,7 +81,6 @@ void semaphores_init()
     sem_init(worker_done, 1, 0);
 }
 
-//TODO: cleanup
 void cleanup()
 {
     sem_destroy(mutex_file);
@@ -132,56 +131,61 @@ void print_flush(const char * format, ...)
     sem_post(mutex_file);
 }
 
-int parse_params(int argc, char* argv[])
+void sleep_rand_up_to_10()
+{
+    srand(time(NULL) * getpid());
+    int sleep_time = rand() % 10;
+    if(sleep_time != 0)
+        usleep(sleep_time*1000);
+}
+
+void check_params_constraints()
+{
+    if(NU < 1)
+    {
+        fprintf(stderr, "Wrong amount in a parameter NU\n");
+        exit(1);
+    } 
+    if(TZ < 0 || TZ > 10000)
+    {
+        fprintf(stderr, "Wrong time in a parameter TZ\n");
+        exit(1);
+    }
+    if(TU < 0 || TU > 100)
+    {
+        fprintf(stderr, "Wrong time in a parameter TU\n");
+        exit(1);
+    }
+    if(F < 0 || F > 10000)
+    {
+        fprintf(stderr, "Wrong time in a parameter F\n");
+        exit(1);
+    }
+}
+
+int str2int(char *str)
+{
+    int result;
+    int tmp = sscanf(str, "%d", &result);
+    if(tmp < 1 || tmp == EOF)
+        exit(1);
+    else
+        return result;
+}
+
+void parse_params(int argc, char* argv[])
 {
     if(argc != 6)
     {
         fprintf(stderr, "Wrong amount of parameters\n");
-        return 1;
+        exit(1);
     }
-    int err = sscanf(argv[1], "%d", &NZ);
-    if(err < 1 || err == EOF)
-        return 1;
-    
-    err = sscanf(argv[2], "%d", &NU);
-    if(err < 1 || err == EOF)
-        return 1;
-    
-    if(NU < 1)
-    {
-        fprintf(stderr, "Wrong amount in a parameter NU\n");
-        return 1;
-    }
-
-    err = sscanf(argv[3], "%d", &TZ);
-    if(err < 1 || err == EOF)
-        return 1;
-    
-    if(TZ < 0 || TZ > 10000)
-    {
-        fprintf(stderr, "Wrong time in a parameter TZ\n");
-        return 1;
-    }
-    err = sscanf(argv[4], "%d", &TU);
-    if(err < 1 || err == EOF)
-        return 1;
-    
-    if(TU < 0 || TU > 100)
-    {
-        fprintf(stderr, "Wrong time in a parameter TU\n");
-        return 1;
-    }
-    
-    err = sscanf(argv[5], "%d", &F);
-    if(err < 1 || err == EOF)
-        return 1;
-
-    if(F < 0 || F > 10000)
-    {
-        fprintf(stderr, "Wrong time in a parameter F\n");
-        return 1;
-    }
-    return 0; //no error
+    NZ = str2int(argv[1]);
+    NU = str2int(argv[2]);
+    TZ = str2int(argv[3]);
+    TU = str2int(argv[4]);
+    F  = str2int(argv[5]);
+    check_params_constraints();
 }
 
 void enlist_queue(int service)
@@ -238,10 +242,7 @@ void customer(int idZ)
         sem_wait(worker_done);
         print_flush("Z %d: called by office worker", idZ);
  
-        srand(time(NULL) * getpid());
-        int sleep_time = rand() % 10;
-        if(sleep_time != 0)
-            usleep(sleep_time*1000);
+        sleep_rand_up_to_10();
                 
         print_flush("Z %d: going home", idZ);
         exit(0);
@@ -291,10 +292,7 @@ int pick_queue(int idU)
     {
         print_flush("U %d: taking break", idU);
         sem_post(mutex_closed);
-        srand(time(NULL) * getpid());
-        int sleep_time = rand() % 10;
-        if(sleep_time != 0)
-            usleep(sleep_time* 1000);
+        sleep_rand_up_to_10();
         print_flush("U %d: break finished", idU);
         return -1; //no service served
     }
@@ -305,50 +303,37 @@ void worker(int idU)
     print_flush("U %d: started", idU);
     while(1)
     {
-        srand(time(NULL) * getpid());
-        int sleep_time = rand() % 10;
-        if(sleep_time != 0)
-            usleep(sleep_time * 1000);
-
+        sleep_rand_up_to_10();
         int service = pick_queue(idU);
-        if(service == -1)
+        if(service == -1)   //no queue picked
             continue;
         
         sem_post(worker_done);
         print_flush("U %d: serving a service of type %d", idU, service);
 
-        srand(time(NULL) * getpid());
-        sleep_time = rand() % 10;
-        if(sleep_time != 0)
-            usleep(sleep_time*1000);
-    
+        sleep_rand_up_to_10();
 
         print_flush("U %d: service finished", idU);
     }
-    exit(1);
 }
 
 int main(int argc, char* argv[])
 {
-    if(parse_params(argc, argv))
-    {
-        exit(1);
-    }
+    parse_params(argc, argv);
+
     file = fopen("proj2.out", "w");
     if(file == NULL)
-    {
         exit(1);
-    }
+    
     semaphores_init();
+
     int idZ = 0;
     while(idZ < NZ)
     {
         idZ++;
         pid_t pid = fork();
         if(pid == 0)
-        {
             customer(idZ);
-        }
     }
     int idU = 0;
     while(idU < NU)
@@ -356,9 +341,7 @@ int main(int argc, char* argv[])
         idU++;
         pid_t pid = fork();
         if(pid == 0)
-        {
             worker(idU);
-        }
     }
 
     if(F != 0)
@@ -369,10 +352,9 @@ int main(int argc, char* argv[])
     }
     sem_wait(mutex_closed);
     *closed = 1;
-    sem_post(mutex_closed);
     print_flush("closing");
+    sem_post(mutex_closed);
 
-    
     while(wait(NULL) > 0);
     cleanup();
     return 0;
