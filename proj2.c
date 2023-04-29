@@ -250,56 +250,54 @@ void customer(int idZ)
 
 int pick_queue(int idU)
 {
-    int service = 0;
     sem_wait(mutex_q1);
-    sem_wait(mutex_q2);
-    sem_wait(mutex_q3);
-    if(*q1 == 0 && *q2 == 0 && *q3 == 0)
-    {
-        sem_wait(mutex_closed);
-        if(*closed == 1)
-        {
-            sem_post(mutex_closed);            
-            print_flush("U %d: going home", idU);
-            sem_post(mutex_q1);
-            sem_post(mutex_q2);
-            sem_post(mutex_q3);
-            exit(0);    
-        }
-        else
-        {
-            print_flush("U %d: taking break", idU);
-            sem_post(mutex_closed);
-            srand(time(NULL) * getpid());
-            int sleep_time = rand() % 10;
-            if(sleep_time != 0)
-                usleep(sleep_time* 1000);
-            print_flush("U %d: break finished", idU);
-            service = -1;
-        }
-    }
-    else if(*q1 > 0)
+    if(*q1 > 0)
     {
         *q1 = *q1 - 1;
-        service =  1;
+        sem_post(mutex_q1);
         sem_wait(queue_service1);
-    }
-    else if(*q2 > 0)
-    {
-        *q2 = *q2 - 1;
-        service = 2;
-        sem_wait(queue_service2);
-    }
-    else if(*q3 > 0)
-    {
-        *q3 = *q3 - 1;
-        service = 3;
-        sem_wait(queue_service3);
+        return 1; //service 1
     }
     sem_post(mutex_q1);
+    
+    sem_wait(mutex_q2);
+    if(*q2 > 0)
+    {
+        *q2 = *q2 - 1;
+        sem_post(mutex_q2);
+        sem_wait(queue_service2);
+        return 2; //service 2
+    }
     sem_post(mutex_q2);
+
+    sem_wait(mutex_q3);
+    if(*q3 > 0)
+    {
+        *q3 = *q3 - 1;
+        sem_post(mutex_q3);
+        sem_wait(queue_service3);
+        return 3; //service 3
+    }
     sem_post(mutex_q3);
-    return service;
+
+    sem_wait(mutex_closed);
+    if(*closed)
+    {
+        sem_post(mutex_closed);            
+        print_flush("U %d: going home", idU);
+        exit(0);    
+    }
+    else
+    {
+        print_flush("U %d: taking break", idU);
+        sem_post(mutex_closed);
+        srand(time(NULL) * getpid());
+        int sleep_time = rand() % 10;
+        if(sleep_time != 0)
+            usleep(sleep_time* 1000);
+        print_flush("U %d: break finished", idU);
+        return -1; //no service served
+    }
 }
 
 void worker(int idU)
