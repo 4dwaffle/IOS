@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h> //rand
-#include <unistd.h> //usleep
-#include <stdarg.h> //va_list
-#include <sys/types.h> //pid_t
-#include <semaphore.h> //sem_t
-#include <sys/mman.h> //mmap
+#include <time.h>       //rand
+#include <unistd.h>     //usleep
+#include <stdarg.h>     //va_list
+#include <sys/types.h>  //pid_t
+#include <semaphore.h>  //sem_t
+#include <sys/mman.h>   //mmap
 #include <semaphore.h>
 #include <stdbool.h>
 #include <sys/wait.h>
@@ -16,57 +16,52 @@ int TZ = 0;     //customer wait time
 int TU = 0;     //worker wait time
 int F  = 0;     //post office open time
 
+sem_t *mutex_file;
 FILE *file;
+
+//action counter
+sem_t *mutex_A; 
+int *A;
+
+sem_t *mutex_closed;
+bool *closed;       //0 default, 1 after post closes
+
+sem_t *mutex_q1;
+sem_t *mutex_q2;
+sem_t *mutex_q3;
+
+//counters for people in queues
+int *q1;
+int *q2;
+int *q3;
 
 sem_t *queue_service1;
 sem_t *queue_service2;
 sem_t *queue_service3;
 
-sem_t *write_file;
-sem_t *action;      //for iteration of A
-int *A;
-bool *closed;       //0 default, 1 after post closes
-sem_t *closed_sem;
-sem_t *mutex_q1;
-sem_t *mutex_q2;
-sem_t *mutex_q3;
-
-sem_t *worker_sem;
-int *q1;
-int *q2;
-int *q3;
+sem_t *worker_done;
 
 void semaphores_init()
 {
-    write_file = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(write_file, 1, 1);
+    mutex_file = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(mutex_file, 1, 1);
 
+    mutex_A = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(mutex_A, 1, 1);
     A = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *A = 0;
-    action = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(action, 1, 1);
 
+    mutex_closed = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(mutex_closed, 1, 1);
     closed = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *closed = 0;
-    closed_sem = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(closed_sem, 1, 1);
-
-    queue_service1 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(queue_service1, 1, 0);
-    queue_service2 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(queue_service2, 1, 0);
-    queue_service3 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(queue_service3, 1, 0);
 
     mutex_q1 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(mutex_q1, 1, 1);
-
     mutex_q2 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(mutex_q2, 1, 1);
-
     mutex_q3 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(mutex_q3, 1, 1);
-
 
     q1 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *q1 = 0;
@@ -75,30 +70,30 @@ void semaphores_init()
     q3 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     *q3 = 0;
     
-    worker_sem = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(worker_sem, 1, 0);
+    queue_service1 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(queue_service1, 1, 0);
+    queue_service2 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(queue_service2, 1, 0);
+    queue_service3 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(queue_service3, 1, 0);
+
+    worker_done = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(worker_done, 1, 0);
 }
 
 //TODO: cleanup
 void cleanup()
 {
-    sem_destroy(write_file);
-    munmap(write_file, sizeof(sem_t));
+    sem_destroy(mutex_file);
+    munmap(mutex_file, sizeof(sem_t));
 
+    sem_destroy(mutex_A);
+    munmap(mutex_A, sizeof(sem_t));
     munmap(A, sizeof(int));
-    sem_destroy(action);
-    munmap(action, sizeof(sem_t));
     
+    sem_destroy(mutex_closed);
+    munmap(mutex_closed, sizeof(sem_t));
     munmap(closed, sizeof(bool));
-    sem_destroy(closed_sem);
-    munmap(closed_sem, sizeof(sem_t));
-
-    sem_destroy(queue_service1);
-    munmap(queue_service1, sizeof(sem_t));
-    sem_destroy(queue_service2);
-    munmap(queue_service2, sizeof(sem_t));
-    sem_destroy(queue_service3);
-    munmap(queue_service3, sizeof(sem_t));
 
     sem_destroy(mutex_q1);
     munmap(mutex_q1, sizeof(sem_t));
@@ -111,23 +106,30 @@ void cleanup()
     munmap(q2, sizeof(int));
     munmap(q3, sizeof(int));
 
-    sem_destroy(worker_sem);
-    munmap(worker_sem, sizeof(sem_t));
+    sem_destroy(queue_service1);
+    munmap(queue_service1, sizeof(sem_t));
+    sem_destroy(queue_service2);
+    munmap(queue_service2, sizeof(sem_t));
+    sem_destroy(queue_service3);
+    munmap(queue_service3, sizeof(sem_t));
+
+    sem_destroy(worker_done);
+    munmap(worker_done, sizeof(sem_t));
 }
 
 void print_flush(const char * format, ...)
 {
-    sem_wait(write_file);
+    sem_wait(mutex_file);
     va_list args;
     va_start (args, format);
-    sem_wait(action);
+    sem_wait(mutex_A);
     fprintf(file, "%d: ", ++*A);
-    sem_post(action);
+    sem_post(mutex_A);
     vfprintf (file, format, args);
     fprintf(file, "\n");
     fflush(file);
     va_end (args);
-    sem_post(write_file);
+    sem_post(mutex_file);
 }
 
 int parse_params(int argc, char* argv[])
@@ -184,7 +186,7 @@ int parse_params(int argc, char* argv[])
 
 void enlist_queue(int service)
 {
-    switch(service)//enlists quee X and waits for call from worker
+    switch(service)
     {
         case 1:
             sem_wait(mutex_q1);
@@ -207,7 +209,7 @@ void enlist_queue(int service)
     }
 }
 
-int customer(int idZ)
+void customer(int idZ)
 {
     print_flush("Z %d: started", idZ);
     if(TZ != 0)
@@ -217,10 +219,10 @@ int customer(int idZ)
         if(sleep_time != 0)
             usleep(sleep_time*1000);
     }
-    sem_wait(closed_sem);   
+    sem_wait(mutex_closed);   
     if(*closed)
     {
-        sem_post(closed_sem);
+        sem_post(mutex_closed);
         print_flush("Z %d: going home", idZ);
         exit(0);
     }
@@ -229,11 +231,11 @@ int customer(int idZ)
         srand(time(NULL) * getpid());
         int service = (rand() % 3) + 1;
         print_flush("Z %d: entering office for a service %d", idZ, service);
-        sem_post(closed_sem);
+        sem_post(mutex_closed);
         
         enlist_queue(service);
         
-        sem_wait(worker_sem);
+        sem_wait(worker_done);
         print_flush("Z %d: called by office worker", idZ);
  
         srand(time(NULL) * getpid());
@@ -254,10 +256,10 @@ int pick_queue(int idU)
     sem_wait(mutex_q3);
     if(*q1 == 0 && *q2 == 0 && *q3 == 0)
     {
-        sem_wait(closed_sem);
+        sem_wait(mutex_closed);
         if(*closed == 1)
         {
-            sem_post(closed_sem);            
+            sem_post(mutex_closed);            
             print_flush("U %d: going home", idU);
             sem_post(mutex_q1);
             sem_post(mutex_q2);
@@ -267,7 +269,7 @@ int pick_queue(int idU)
         else
         {
             print_flush("U %d: taking break", idU);
-            sem_post(closed_sem);
+            sem_post(mutex_closed);
             srand(time(NULL) * getpid());
             int sleep_time = rand() % 10;
             if(sleep_time != 0)
@@ -300,7 +302,7 @@ int pick_queue(int idU)
     return service;
 }
 
-int worker(int idU)
+void worker(int idU)
 {
     print_flush("U %d: started", idU);
     while(1)
@@ -314,7 +316,7 @@ int worker(int idU)
         if(service == -1)
             continue;
         
-        sem_post(worker_sem);
+        sem_post(worker_done);
         print_flush("U %d: serving a service of type %d", idU, service);
 
         srand(time(NULL) * getpid());
@@ -367,9 +369,9 @@ int main(int argc, char* argv[])
         int sleep_time = rand() % F/2 + F/2;
         usleep(sleep_time*1000);
     }
-    sem_wait(closed_sem);
+    sem_wait(mutex_closed);
     *closed = 1;
-    sem_post(closed_sem);
+    sem_post(mutex_closed);
     print_flush("closing");
 
     
