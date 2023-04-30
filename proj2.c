@@ -237,13 +237,11 @@ void customer(int idZ)
         print_flush("Z %d: entering office for a service %d", idZ, service);
         sem_post(mutex_closed);
         
-        enlist_queue(service);
-        
+        enlist_queue(service);        
         sem_wait(worker_done);
+
         print_flush("Z %d: called by office worker", idZ);
- 
         sleep_rand_up_to_10();
-                
         print_flush("Z %d: going home", idZ);
         exit(0);
     }
@@ -310,9 +308,7 @@ void worker(int idU)
         
         sem_post(worker_done);
         print_flush("U %d: serving a service of type %d", idU, service);
-
         sleep_rand_up_to_10();
-
         print_flush("U %d: service finished", idU);
     }
 }
@@ -352,10 +348,11 @@ int main(int argc, char* argv[])
     }
     sem_wait(mutex_closed);
     *closed = 1;
-    print_flush("closing");
     sem_post(mutex_closed);
+    print_flush("closing");
 
     while(wait(NULL) > 0);
     cleanup();
+    fclose(file);
     return 0;
 }
