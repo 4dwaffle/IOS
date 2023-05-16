@@ -4,11 +4,11 @@
 ## Task description (Post office)
 We have 3 types of processes in the system: **(0) main process**, **(1) postal clerk**, and **(2) customer**. Each customer goes to the post office to handle one of three types of requests: letter services, parcel services, money services. Each request is uniquely identified by a number (letters:1, parcels:2, money services:3). On arrival, they are queued according to the activity to be handled. Each clerk serves all the queues (picking one of the queues at random each time). If there are no customers currently waiting, the clerk takes a short break. After the post office closes, the clerks finish serving all customers in the queue and go home when all queues are empty. Any customers who arrive after the post office closes go home (tomorrow is also a day).
 
-### Detailed task specification
+## Detailed task specification
 Each process performs its actions and simultaneously writes information about the actions to a file named 
 proj2.out. The action output information includes the sequence number **A** of the action being executed (see Example output). Actions are numbered from one. 
 
-#### Startup:
+### Startup:
 
 $ ./proj2 NZ NU TZ TU F
 
@@ -20,7 +20,7 @@ $ ./proj2 NZ NU TZ TU F
 - **F**: Maximum time in milliseconds after which the mail is closed to new arrivals.
     0 <= F <= 10 000
 
-#### Main process
+### Main process
 
 - Ceates NZ customer processes and NU clerk processes immediately after start
 - Waits a random time in the interval <F/2,F> by calling usleep
@@ -28,7 +28,7 @@ $ ./proj2 NZ NU TZ TU F
 - Then waits for closure of all processes that the application creates. Once these processes are
     are terminated, the main process is terminated with exit code 0.
 
-#### Process Customer
+### Process Customer
 
 - Each customer is uniquely identified by idZ, 0 < idZ <= NZ
 - Prints "*A: Z idZ: started*" after start
@@ -44,7 +44,7 @@ $ ./proj2 NZ NU TZ TU F
     - Prints "*A: Z idZ: going home*"
     - Process ends
 
-#### Process clerk
+### Process clerk
 
 - Each clerk is uniquely identified by the number idU, 0 < idU <= NU
 - prints: "*A: U idU: started*" when started [start of the cycle].
@@ -90,6 +90,4 @@ $ ./proj2 3 2 100 100 100
 18: Z 2: going home\
 19: U 2: service finished\
 20: U 2: going home\
-21: Z 3: going home\
-
-
+21: Z 3: going home
