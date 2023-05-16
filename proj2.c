@@ -11,9 +11,9 @@
 #include <sys/wait.h>
 
 int NZ = 0;     //number of customers
-int NU = 0;     //number of workers
+int NU = 0;     //number of clerks
 int TZ = 0;     //customer wait time
-int TU = 0;     //worker wait time
+int TU = 0;     //clerk wait time
 int F  = 0;     //post office open tine period
 
 sem_t *mutex_file;
@@ -39,7 +39,7 @@ sem_t *queue_service1;
 sem_t *queue_service2;
 sem_t *queue_service3;
 
-sem_t *worker_done;
+sem_t *clerk_done;
 
 void semaphores_init()
 {
@@ -77,8 +77,8 @@ void semaphores_init()
     queue_service3 = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     sem_init(queue_service3, 1, 0);
 
-    worker_done = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    sem_init(worker_done, 1, 0);
+    clerk_done = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    sem_init(clerk_done, 1, 0);
 }
 
 void cleanup()
@@ -112,8 +112,8 @@ void cleanup()
     sem_destroy(queue_service3);
     munmap(queue_service3, sizeof(sem_t));
 
-    sem_destroy(worker_done);
-    munmap(worker_done, sizeof(sem_t));
+    sem_destroy(clerk_done);
+    munmap(clerk_done, sizeof(sem_t));
 }
 
 void print_flush(const char * format, ...)
@@ -238,9 +238,9 @@ void customer(int idZ)
         sem_post(mutex_closed);
         
         enlist_queue(service);        
-        sem_wait(worker_done);
+        sem_wait(clerk_done);
 
-        print_flush("Z %d: called by office worker", idZ);
+        print_flush("Z %d: called by office clerk", idZ);
         sleep_rand_up_to_10();
         print_flush("Z %d: going home", idZ);
         exit(0);
@@ -296,7 +296,7 @@ int pick_queue(int idU)
     }
 }
 
-void worker(int idU)
+void clerk(int idU)
 {
     print_flush("U %d: started", idU);
     while(1)
@@ -306,7 +306,7 @@ void worker(int idU)
         if(service == -1)   //no queue picked
             continue;
         
-        sem_post(worker_done);
+        sem_post(clerk_done);
         print_flush("U %d: serving a service of type %d", idU, service);
         sleep_rand_up_to_10();
         print_flush("U %d: service finished", idU);
@@ -337,7 +337,7 @@ int main(int argc, char* argv[])
         idU++;
         pid_t pid = fork();
         if(pid == 0)
-            worker(idU);
+            clerk(idU);
     }
 
     if(F != 0)
