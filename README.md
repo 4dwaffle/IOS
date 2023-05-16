@@ -1,77 +1,76 @@
-# IOS – projekt 2 (synchronizace)
+# IOS - synchronization project
+(IOS = operating systems class at BUT FIT)
 
-Zadání je inspirováno knihou Allen B. Downey: The Little Book of Semaphores (The barbershop
-problem)
+## Task description (Post office)
+We have 3 types of processes in the system: **(0) main process**, **(1) postal clerk**, and **(2) customer**. Each customer goes to the post office to handle one of three types of requests: letter services, parcel services, money services. Each request is uniquely identified by a number (letters:1, parcels:2, money services:3). On arrival, they are queued according to the activity to be handled. Each clerk serves all the queues (picking one of the queues at random each time). If there are no customers currently waiting, the clerk takes a short break. After the post office closes, the clerks finish serving all customers in the queue and go home when all queues are empty. Any customers who arrive after the post office closes go home (tomorrow is also a day).
 
-## Popis Úlohy (Pošta)
+### Detailed task specification
+Each process performs its actions and simultaneously writes information about the actions to a file named 
+proj2.out. The action output information includes the sequence number **A** of the action being executed (see Example output). Actions are numbered from one. 
 
-V systému máme 3 typy procesů: (0) hlavní proces, (1) poštovní úředník a (2) zákazník. Každý zákazník jde na poštu vyřídit jeden ze tří typů požadavků: listovní služby, balíky, peněžní služby. Každý požadavek je jednoznačně identifikován číslem (dopisy:1, balíky:2, peněžní služby:3). Po příchodu se zařadí do fronty dle činnosti, kterou jde vyřídit. Každý úředník obsluhuje všechny fronty (vybírá pokaždé náhodně jednu z front). Pokud aktuálně nečeká žádný zákazník, tak si úředník bere krátkou přestávku. Po uzavření pošty úředníci dokončí obsluhu všech zákazníků ve frontě a po vyprázdnění všech front odhází domů. Případní zákazníci, kteří přijdou po uzavření pošty, odcházejí domů (zítra je také den).
-
-### Podrobná specifikace úlohy
-
-#### Spuštění:
+#### Startup:
 
 $ ./proj2 NZ NU TZ TU F
 
-- NZ: počet zákazníků
-- NU: počet úředníků
-- TZ: Maximální čas v milisekundách, po který zákazník po svém vytvoření čeká, než vejde na
-    poštu (eventuálně odchází s nepořízenou). 0<=TZ<=
-- TU: Maximální délka přestávky úředníka v milisekundách. 0<=TU<=
-- F: Maximální čas v milisekundách, po kterém je uzavřena pošta pro nově příchozí.
-    0<=F<=
+- **NZ**: number of customers
+- **NU**: number of clerks
+- **TZ**: maximum time in milliseconds a customer waits after being created before entering the
+    0 <= TZ <= 10 000
+- **TU**: The maximum length of a clerk's pause in milliseconds. 0 <= TU <= 100
+- **F**: Maximum time in milliseconds after which the mail is closed to new arrivals.
+    0 <= F <= 10 000
 
-#### Hlavní proces
+#### Main process
 
-- Hlavní proces vytváří ihned po spuštění NZ procesů zákazníků a NU procesů úředníků.
-- Čeká pomocí volání usleep náhodný čas v intervalu <F/2,F>
-- Vypíše: _A: closing_
-- Poté čeká na ukončení všech procesů, které aplikace vytváří. Jakmile jsou tyto procesy
-    ukončeny, ukončí se i hlavní proces s kódem (exit code) 0.
+- Ceates NZ customer processes and NU clerk processes immediately after start
+- Waits a random time in the interval <F/2,F> by calling usleep
+- Prints: "*A: closing*"
+- Then waits for closure of all processes that the application creates. Once these processes are
+    are terminated, the main process is terminated with exit code 0.
 
-#### Proces Zákazník
+#### Process Customer
 
-- Každý zákazník je jednoznačně identifikován číslem idZ, 0<idZ<=NZ
-- Po spuštění vypíše: _A: Z idZ: started_
-- Následně čeká pomocí volání usleep náhodný čas v intervalu <0,TZ>
-- Pokud je pošta uzavřena
-    ◦ Vypíše: A: _Z idZ: going home_
-    ◦ Proces končí
-- Pokud je pošta otevřená, náhodně vybere činnost X---číslo z intervalu <1,3>
-    ◦ Vypíše: _A: Z idZ: entering office for a service X_
-    ◦ Zařadí se do fronty X a čeká na zavolání úředníkem.
-    ◦ Vypíše: _Z idZ: called by office worker_
-    ◦ Následně čeká pomocí volání usleep náhodný čas v intervalu <0,10> (synchronizace s
-       úředníkem na dokončení žádosti není vyžadována).
-    ◦ Vypíše: _A: Z idZ: going home_
-    ◦ Proces končí
+- Each customer is uniquely identified by idZ, 0 < idZ <= NZ
+- Prints "*A: Z idZ: started*" after start
+- Then waits a random time in the interval <0,TZ>
+- If the post office is closed
+    - Prints "*A: Z idZ: going home*"
+    - Process ends
+- If the post office is open, randomly selects an X (number activity from the interval <1,3>)
+    - Print: "*A: Z idZ: entering office for a service X*"
+    - Queues X and waits to be called by a clerk
+    - Print: "*Z idZ: called by office worker"*
+    - Then waits a random time in the interval <0,10> (synchronization with clerk to complete the request is not required).
+    - Prints "*A: Z idZ: going home*"
+    - Process ends
 
-#### Proces Úředník
+#### Process clerk
 
-- Každý úředník je jednoznačně identifikován číslem idU, 0<idU<=NU
-- Po spuštění vypíše: _A: U idU: started_
-    [začátek cyklu]
-- Úředník jde obsloužit zákazníka z fronty X (vybere náhodně libovolnou neprázdnou).
-    ◦ Vypíše _: A: U idU: serving a service of type X_
-    ◦ Následně čeká pomocí volání usleep náhodný čas v intervalu <0,10>
-    ◦ Vypíše _: A: U idU: service finished_
-    ◦ Pokračuje na [začátek cyklu]
-- Pokud v žádné frontě nečeká zákazník a pošta je otevřená vypíše
-    ◦ Vypíše _: A: U idU: taking break_
-    ◦ Následně čeká pomocí volání usleep náhodný čas v intervalu <0,TU>
-    ◦ Vypíše _: A: U idU: break finished_
-    ◦ Pokračuje na [začátek cyklu]
-- Pokud v žádné frontě nečeká zákazník a pošta je zavřená
-    ◦ Vypíše _: A: U idU: going home_
-    ◦ Proces končí
+- Each clerk is uniquely identified by the number idU, 0 < idU <= NU
+- prints: "*A: U idU: started*" when started [start of the cycle].
+- The clerk goes to serve the customer from queue X (a random non-empty queue)
+    - Prints "*A: U idU: serving a service of type X*"
+    - Then waits a random time in the interval <0,10>
+    - Print "*A: U idU: service finished*"
+    - Continues to [start of the cycle]
+- If there is no customer waiting in any queue and post office is open
+    - Print !*A: U idU: taking break*"
+    - Then waits a random time in the interval <0,TU>
+    - Print "*A: U idU: break finished*"
+    - Continues to [start of the cycle]
+- If there is no customer waiting in any queue and the post office is closed
+    - Print "*A: U idU: going home*"
+    - Process ends
 
-## Příklad výstupu
 
-Příklad výstupního souboru proj2.out pro následující příkaz:
+
+## Example output
+
+Example output file proj2.out for the ommand 
 
 $ ./proj2 3 2 100 100 100
 
-1: U 1: started\
+>1: U 1: started\
 2: Z 3: started\
 3: Z 1: started\
 4: Z 1: entering office for a service 2\
