@@ -2,7 +2,7 @@
 (IOS = operating systems class at BUT FIT)
 
 ## Task description (Post office)
-We have 3 types of processes in the system: **(0) main process**, **(1) postal clerk**, and **(2) customer**. Each customer goes to the post office to handle one of three types of requests: letter services, parcel services, money services. Each request is uniquely identified by a number (letters:1, parcels:2, money services:3). On arrival, they are queued according to the activity to be handled. Each clerk serves all the queues (picking one of the queues at random each time). If there are no customers currently waiting, the clerk takes a short break. After the post office closes, the clerks finish serving all customers in the queue and go home when all queues are empty. Any customers who arrive after the post office closes go home (tomorrow is also a day).
+There are 3 types of processes in the system: **(0) main process**, **(1) postal clerk**, and **(2) customer**. Each customer goes to the post office with one of the three types of requests: letter services, parcel services, money services. Each request is uniquely identified by a number (letters:1, parcels:2, money services:3). On arrival, they are queued according to the desired service. Each clerk serves all the queues (picking random queues each time). If there are currently no customers waiting, the clerk takes a short break. After the post office closes, clerks finish serving all customers in the queue and go home when all queues are empty. Any customers arriving after the post office closes, go home.
 
 ## Detailed task specification
 Each process performs its actions and simultaneously writes information about the actions to a file named 
